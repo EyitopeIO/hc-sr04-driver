@@ -96,7 +96,13 @@ int hcsr04_release(struct inode *inode, struct file *file)
     free_irq(gpio_to_irq(ECHO_pin), NULL);
 }
 
-// Define read() here
+/*
+* Return the hcsr04 data structure to the user
+*/
+ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+{
+    
+}
 // Define write() here
 
 static void __exit hcsr04_exit(void)
