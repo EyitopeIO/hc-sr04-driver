@@ -15,26 +15,41 @@
 
 #include <linux/types.h>
 #include <linux/cdev.h>
+#include <linux/list.h>
+#include ,linux/slab.h>
 #include <linux/types.h>.
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <asm/uaccess.h>
-
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+
+#include <hcsr04.h>
 
 #define TRIG_pin 23     // hcsr04 trigger pin
 #define ECHO_pin 24     // hcsr04 echo pin
 
 static dev_t hcsr04_devt;
-static cdev hcsr04_cdev;
+static cdev hcsr04_cdev; 
+
+
 
 /*
 * State variables
 */
-unsigned char waiting_for_echo = 0;    // A state variable
-unsigned int ECHO_pin_current_state = 0;    // A stat
+unsigned char waiting_for_echo = 0;   
+unsigned int ECHO_pin_current_state = 0;  
+
+/*
+* LIFO to hold the most recent 5 measured distance
+*/
+static struct user_data{
+    struct hcsr04_data;
+    struct list_head giant_baby_head;
+};
+
+LIST_HEAD(lifo_head);
 
 struct file_operations hcsr04_fops = {
     .owner = THIS_MODULE;
@@ -43,7 +58,6 @@ struct file_operations hcsr04_fops = {
     .write = hcsr04_write;
     .release = hcsr04_release;
 }
-
 
 static irq_handler_r InterruptHandler_ECHO_pin_change(unsigned int irq, struct pt_regs *regs)
 {
@@ -59,7 +73,6 @@ static irq_handler_r InterruptHandler_ECHO_pin_change(unsigned int irq, struct p
     }
     return (irq_handler_t)IRQ_HANDLED;
 }
-
 
 static int __init hcsr04_init(void) 
 {
@@ -102,7 +115,37 @@ int hcsr04_release(struct inode *inode, struct file *file)
 ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
     
+    hcsr04_data tmpbuff[count];
+    hcsr04 emptyd = {   // Represents a NULL or unavailable data.
+        .t_stamp = 0;
+        .t_echo = 0;
+        .distance = 0.0;
+    }
+    
+    struct list_head *i, *tmp;
+    struct user_data *usd;
+    size_t counter = 0;
+    
+    if (count == 0) return 0;
+    
+    list_for_each_safe(i, tmp, &lifo_head) {
+        
+        usd = list_entry(i, struct user_data, giant_baby_head);
+        
+        if (usd == NULL) tmpbuff[counter++] = emptyd;
+        else tmpbuff[counter++] = *usd;
+        
+        list_del(i);
+        kfree(usd);
+        
+        if (counter == count) break;
+    }
+    
+    copy_to_user(buf, tmpbuff, sizeof(tmpbuff));
+    return sizeof(tmpbuff);
+    
 }
+
 // Define write() here
 // Receives a string of length 2 i.e. character with null
 // You pull the trigger, but reading won't be possible until data is available
