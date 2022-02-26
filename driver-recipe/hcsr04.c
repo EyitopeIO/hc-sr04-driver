@@ -104,6 +104,9 @@ ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f
     
 }
 // Define write() here
+// Receives a string of length 2 i.e. character with null
+// You pull the trigger, but reading won't be possible until data is available
+
 
 static void __exit hcsr04_exit(void)
 {
