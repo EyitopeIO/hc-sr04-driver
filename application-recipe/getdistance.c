@@ -21,6 +21,11 @@
 */
 #define READ_INTERVAL 6300
 
+struct hcsr04_data 
+{
+    unsigned long long t_stamp;
+    int t_high;
+};
 
 unsigned long millis()
 {

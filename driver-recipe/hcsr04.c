@@ -16,8 +16,8 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/list.h>
-#include ,linux/slab.h>
-#include <linux/types.h>.
+#include <linux/slab.h>
+#include <linux/types.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
@@ -32,92 +32,41 @@
 
 #define TRIG_pin 23             // hcsr04 trigger pin
 #define ECHO_pin 24             // hcsr04 echo pin
-
 #define TRIG_tme 10             // hcsr04 trigger period
-
+#define PLSE_tme 200            // Time for 8 pulses at 40kHz
 #define SPEED_OF_SOUND 340      // In metres per second
 #define MICRO 0.000001          // Micro multiplier
+#define MAX_READS 5             
 
 static dev_t hcsr04_devt;
-static cdev hcsr04_cdev; 
-
+struct cdev hcsr04_cdev; 
+static char buffer[64];
 
 /*
 * State variables
 */
-unsigned char waiting_for_echo = 0;   
-unsigned int ECHO_pin_current_state = 0;
-u64 ktime ECHO_high_starttime = 0;
-struct user_data *gbp = NULL;
+volatile int waiting_for_echo = 0;   
+volatile int ECHO_pin_current_state = 0;
+volatile ktime_t ECHO_high_starttime = 0;
 
 /*
-* Unit of data to add to the LIFO
+* Unit of hcsr04 data to add to the LIFO
 */
-static struct user_data{
-    struct hcsr04_data;
+struct user_data {
+    struct hcsr04_data data;
     struct list_head giant_baby_head;
 };
 
 /*
-* Temporary variabls to hold results of calculations
+* Temporary working variables
 */
-double distance = 0.0;
-unsigned int duration = 0;
+volatile struct user_data *gbp = NULL;
 
 /*
+* unsigned long long unsigned long long distance;
 * Initialise the LIFO used to hold last 5 readings
 */
 LIST_HEAD(lifo_head);
-
-
-struct file_operations hcsr04_fops = {
-    .owner = THIS_MODULE;
-    .open = hcsr04_open;
-    .read = hcsr04_read;
-    .write = hcsr04_write;
-    .release = hcsr04_release;
-}
-
-
-static irq_handler_r InterruptHandler_ECHO_pin_change(unsigned int irq, struct pt_regs *regs)
-{
-    ECHO_pin_current_state = gpio_get_value(ECHO_pin);
-    
-    if (waiting_for_echo && ECHO_pin_current_state) // When ECHO pin goes high after triggering
-    {
-        ECHO_high_starttime = ktime_get_real_ns();
-    }
-    else if (waiting_for_echo && !ECHO_pin_current_state)   // When ECHO pin goes low after earlier being triggered
-    {
-        if ((struct user_data *gbp = kmalloc(sizeof(user_data), GFP_KERNEL)) != NULL)
-        {
-            duration = (unsigned int)(ktime_get_real_ns() - ECHO_high_starttime);
-            distance = (duration * MICRO) * (SPEED_OF_SOUND/2);
-            gbp->tstamp = (unsigned long)ktime_get_real();
-            gbp->t_echo = duration;
-            gbp->distance = distance;
-            list_add(gbp->giant_baby_head, &lifo_head);
-        }
-        waiting_for_echo = 0;
-    }
-    else        // Every other case is invalid 
-    {
-        waiting_for_echo = 0;
-    }
-    
-    return (irq_handler_t)IRQ_HANDLED;
-}
-
-
-static int __init hcsr04_init(void)  
-{
-    alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04");
-    cdev_init(&hcsr04_cdev, &hcsr04_fops);
-    hcsr04_cdev.owner = THIS_MODULE;
-    cdev_add(&hcsr04_cdev, hcsr04_devt, 1);
-    return 0;
-}
-
 
 /*
 * Take full control of GPIO 23 & 24 by configuring for input (echo) and output (trigger),
@@ -126,41 +75,32 @@ static int __init hcsr04_init(void)
 int hcsr04_open(struct inode *inode, struct file *file) 
 {   
     int error_n = 0;
-    if ((error_n = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return errno;
-    if ((error_n = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return errno;
-    if ((error_n = gpio_direction_input(ECHO_pin, "Echo pin")) < 0 ) return errno;
-    if ((error_n = gpio_direction_output(TRIG_pin, "Echo pin")) < 0 ) return errno;
-    
-    if ((error_n = request_irq(gpio_to_irq(ECHO_pin), (irq_handler_t)InterruptHandler_ECHO_pin_change, IRQF_TRIGGER_RISING | IRQ_TRIGGER_FALLING), "Interrupt request", NULL) < 0 )
-        return errno;
+    if ((error_n = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return error_n;
+    if ((error_n = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return error_n;
+    if ((error_n = gpio_direction_input(ECHO_pin)) < 0 ) return error_n;
+    if ((error_n = gpio_direction_output(TRIG_pin, 0)) < 0 ) return error_n;
+    return 0;
 }
 
-
-/*
-* Free all GPIO resources obtained
-*/
 int hcsr04_release(struct inode *inode, struct file *file) 
 {
     gpio_free(ECHO_pin);
     gpio_free(TRIG_pin);
     free_irq(gpio_to_irq(ECHO_pin), NULL);
+    return 0;
 }
 
-
-/*
-* Return the hcsr04 data structure to the user
-*/
 ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) 
 {
-    hcsr04_data tmpbuff[count];
-    hcsr04 emptyd = {   // Represents a NULL or unavailable data.
-        .t_stamp = 0;
-        .t_echo = 0;
-        .distance = 0.0;
-    }    
+    struct hcsr04_data tmpbuff[MAX_READS];
+    struct hcsr04_data emptyd = {   // Represents a NULL or unavailable data.
+        .t_stamp = 0,
+        .t_high = 0,
+    };   
     struct list_head *i, *tmp;
     struct user_data *usd;
     size_t counter = 0;
+    unsigned long not_copied = 0;
     
     if (count == 0) return 0;
     
@@ -168,32 +108,56 @@ ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f
     { 
         usd = list_entry(i, struct user_data, giant_baby_head);
         if (usd == NULL) tmpbuff[counter++] = emptyd;
-        else tmpbuff[counter++] = *usd;      
+        else tmpbuff[counter++] = usd->data;      
         list_del(i);
         kfree(usd);    
         if (counter == count) break;
-    }
-    
-    copy_to_user(buf, tmpbuff, sizeof(tmpbuff));
-    return sizeof(tmpbuff);
-    
+    }  
+    not_copied = copy_to_user(buf, tmpbuff, sizeof(tmpbuff)*counter);
+    return sizeof(tmpbuff) * counter;   
 }
-
 
 ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff_t * offset)
 {
     size_t le = strlen(buffer);
-    if ( le < 0 ) return -1;
+    if (le < 0) return -1;
     
-    if (waiting_for_echo) return 0;
-    
-    waiting_for_echo = 1;
     gpio_set_value(TRIG_pin, 1);
-    udelay(TRIG_per);
+    udelay(TRIG_tme);   // Wait 10 micro seconds
     gpio_set_value(TRIG_pin, 0);
-    return 1;
+    
+    while (!gpio_get_value(ECHO_pin));  // Wait for pin to go high
+    ECHO_high_starttime = ktime_get_real_ns();
+    while (gpio_get_value(ECHO_pin));  // Wait for pin to go low
+    
+    if ((gbp = kmalloc(sizeof(struct user_data), GFP_KERNEL)) != NULL)
+    {
+        (gbp->data).t_stamp = (unsigned long)ktime_get_real();
+        (gbp->data).t_high = (int)(ktime_get_real_ns() - ECHO_high_starttime);
+        list_add(&gbp->giant_baby_head, &lifo_head);
+        return 0;
+    }
+    return -1;
+
 }
 
+struct file_operations hcsr04_fops = {
+    .owner = THIS_MODULE,
+    .open = hcsr04_open,
+    .read = hcsr04_read,
+    .write = hcsr04_write,
+    .release = hcsr04_release
+};
+
+static int __init hcsr04_init(void)  
+{
+    alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04");
+    printk(KERN_INFO "%s loaded.\n", format_dev_t(buffer, hcsr04_devt));
+    cdev_init(&hcsr04_cdev, &hcsr04_fops);
+    hcsr04_cdev.owner = THIS_MODULE;
+    cdev_add(&hcsr04_cdev, hcsr04_devt, 1);
+    return 0;
+}
 
 static void __exit hcsr04_exit(void)
 {
@@ -204,4 +168,4 @@ static void __exit hcsr04_exit(void)
 module_init(hcsr04_init);
 module_exit(hcsr04_exit);
 MODULE_AUTHOR("Eyitope Adelowo");
-MODULE_LICENSE("MIT");
+MODULE_LICENSE("GPL");

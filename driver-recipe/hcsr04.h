@@ -14,13 +14,12 @@
 /*
  * Data structure to get a unit of data from the driver.
  *
- * tstamp:      Unix time when the device was triggered.
- * techo:       Time between trigger and the echo.
- * distance:    Measured distance     
+ * t_stamp:      Unix time when the device was triggered.
+ * t_echo:       Time between trigger and the echo.
+ * t_high:       Measured distance     
 */
 struct hcsr04_data 
 {
-    unsigned long t_stamp;
-    unsigned int t_echo;
-    float distance;
+    unsigned long long t_stamp;
+    int t_high;
 };

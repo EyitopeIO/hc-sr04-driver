@@ -1,0 +1,35 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	0.0.0	//
+ECHO_high_starttime	driver-recipe/hcsr04.c	/^u64 ktime ECHO_high_starttime = 0;$/;"	v	typeref:typename:u64 ktime
+ECHO_pin	driver-recipe/hcsr04.c	/^#define ECHO_pin /;"	d	file:
+ECHO_pin_current_state	driver-recipe/hcsr04.c	/^unsigned int ECHO_pin_current_state = 0;$/;"	v	typeref:typename:unsigned int
+MICRO	driver-recipe/hcsr04.c	/^#define MICRO /;"	d	file:
+READ_INTERVAL	application-recipe/getdistance.c	/^#define READ_INTERVAL /;"	d	file:
+SPEED_OF_SOUND	driver-recipe/hcsr04.c	/^#define SPEED_OF_SOUND /;"	d	file:
+SRC	Makefile	/^SRC := $(shell pwd)$/;"	m
+TRIG_pin	driver-recipe/hcsr04.c	/^#define TRIG_pin /;"	d	file:
+TRIG_tme	driver-recipe/hcsr04.c	/^#define TRIG_tme /;"	d	file:
+all	Makefile	/^all:$/;"	t
+clean	Makefile	/^clean:$/;"	t
+distance	driver-recipe/hcsr04.c	/^double distance = 0.0;$/;"	v	typeref:typename:double
+distance	driver-recipe/hcsr04.h	/^    float distance;$/;"	m	struct:hcsr04_data	typeref:typename:float
+duration	driver-recipe/hcsr04.c	/^unsigned int duration = 0;$/;"	v	typeref:typename:unsigned int
+gbp	driver-recipe/hcsr04.c	/^struct user_data *gbp = NULL;$/;"	v	typeref:struct:user_data *
+giant_baby_head	driver-recipe/hcsr04.c	/^    struct list_head giant_baby_head;$/;"	m	struct:user_data	typeref:struct:list_head	file:
+hcsr04_cdev	driver-recipe/hcsr04.c	/^static cdev hcsr04_cdev; $/;"	v	typeref:typename:cdev	file:
+hcsr04_data	driver-recipe/hcsr04.h	/^struct hcsr04_data $/;"	s
+hcsr04_devt	driver-recipe/hcsr04.c	/^static dev_t hcsr04_devt;$/;"	v	typeref:typename:dev_t	file:
+hcsr04_fops	driver-recipe/hcsr04.c	/^struct file_operations hcsr04_fops = {$/;"	v	typeref:struct:file_operations
+main	application-recipe/getdistance.c	/^int main(int argc, char *argv[])$/;"	f	typeref:typename:int
+millis	application-recipe/getdistance.c	/^unsigned long millis()$/;"	f	typeref:typename:unsigned long
+modules_install	Makefile	/^modules_install:$/;"	t
+obj-m	Makefile	/^obj-m := hcsr04.o$/;"	m
+t_echo	driver-recipe/hcsr04.h	/^    unsigned int t_echo;$/;"	m	struct:hcsr04_data	typeref:typename:unsigned int
+t_stamp	driver-recipe/hcsr04.h	/^    unsigned long t_stamp;$/;"	m	struct:hcsr04_data	typeref:typename:unsigned long
+user_data	driver-recipe/hcsr04.c	/^static struct user_data{$/;"	s	file:
+waiting_for_echo	driver-recipe/hcsr04.c	/^unsigned char waiting_for_echo = 0;   $/;"	v	typeref:typename:unsigned char
