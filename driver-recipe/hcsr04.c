@@ -45,7 +45,9 @@
 
 static dev_t hcsr04_devt;
 struct cdev hcsr04_cdev; 
-static char buffer[64];
+// static char buffer[64];
+unsigned long not_copied = 0;
+int pending_read = 0;
 char *hcsr04_name = "hcsr04";
 struct class *hcsr04_class;
 struct device *hcsr04_device;
@@ -55,14 +57,15 @@ ktime_t ECHO_high_stooptime;
 ktime_t tmp_ktime;
 ktime_t TRIG_timeout;
 
-struct user_data {
-    struct hcsr04_data data;
-    struct list_head giant_baby_head;
-};
+// struct user_data {
+//     struct hcsr04_data data;
+//     struct list_head giant_baby_head;
+// };
 
-volatile struct user_data *gbp = NULL;
-LIST_HEAD(lifo_head);
+// struct user_data *gbp = NULL;
+struct hcsr04_data usd;
 
+// LIST_HEAD(lifo_head);
 
 /*
 * Take full control of GPIO 23 & 24 by configuring for input (echo) and output (trigger),
@@ -91,41 +94,44 @@ int hcsr04_release(struct inode *inode, struct file *file)
 
 ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) 
 {
-    struct hcsr04_data tmpbuff[MAX_READS];
-    struct hcsr04_data emptyd = {   // Represents a NULL or unavailable data.
-        .t_stamp = 0,
-        .t_high = 0,
-    };   
-    struct list_head *i, *tmp;
-    struct user_data *usd;
-    size_t counter = count / sizeof(struct hcsr04_data);
-    unsigned long not_copied = 0;
+    // struct hcsr04_data tmpbuff[MAX_READS];
+    // struct hcsr04_data emptyd = {   // Represents a NULL or unavailable data.
+    //     .t_stamp = 0,
+    //     .t_high = 0,
+    // };   
+    // struct list_head *i, *tmp;
+    // struct user_data *usd;
+    // size_t counter = count / sizeof(struct hcsr04_data);
     
-    if (count == 0) return 0;
+    // if (count == 0) return 0;
     
-    list_for_each_safe(i, tmp, &lifo_head) 
-    { 
-        usd = list_entry(i, struct user_data, giant_baby_head);
-        if (usd == NULL) tmpbuff[counter++] = emptyd;
-        else tmpbuff[counter++] = usd->data;      
-        list_del(i);
-        kfree(usd);    
-        if ((counter * sizeof(struct hcsr04_data)) == count) break;
-    }  
-    not_copied = copy_to_user(buf, tmpbuff, sizeof(tmpbuff)*counter);
-    return sizeof(tmpbuff) * counter;   
+    // list_for_each_safe(i, tmp, &lifo_head) 
+    // { 
+    //     usd = list_entry(i, struct user_data, giant_baby_head);
+    //     if (usd == NULL) tmpbuff[counter++] = emptyd;
+    //     else tmpbuff[counter++] = usd->data;      
+    //     list_del(i);
+    //     kfree(usd);    
+    //     if ((counter * sizeof(struct hcsr04_data)) == count) break;
+    // }  
+    // not_copied = copy_to_user(buf, tmpbuff, sizeof(tmpbuff)*counter);
+    
+    not_copied = copy_to_user(buf, &usd, sizeof(usd));
+    pending_read = 0;
+    return sizeof(usd);
 }
 
 ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff_t * offset)
 {
-    char tmp[64];
-    copy_from_user(tmp, buffer, 1);
 
-    if ((le = strlen(tmp)) < 0) return -1;
+    if (pending_read)
+        return -1;
     
     gpio_set_value(TRIG_pin, 1);
     udelay(TRIG_tme);   // Wait 10 micro seconds
     gpio_set_value(TRIG_pin, 0);
+
+    pending_read = 1;
 
     tmp_ktime = ktime_get_real_ns();
 
@@ -137,22 +143,24 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
             
             while (ktime_sub(ktime_get_real_ns(), ECHO_high_starttime) < TRIG_timeout) {
                
-                if (!gpio_get_value(ECHO_pin) {
+                if (!gpio_get_value(ECHO_pin)) {
                     
                     ECHO_high_stooptime = ktime_get_real_ns();
-
-                    if ((gbp = kmalloc(sizeof(struct user_data), GFP_KERNEL)) != NULL) {
-                        (gbp->data).t_stamp = (unsigned long)ktime_get_seconds();      
-                        tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
-                        (gbp->data).t_high = (unsigned int)ktime_to_ns(tmp_ktime);
-                        list_add(&gbp->giant_baby_head, &lifo_head);
-                        return 0;
-                    }
+                    tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
+                    usd.t_stamp = (unsigned long)ktime_get_seconds();      
+                    usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
+                    return 0;
+                    // if ((gbp = kmalloc(sizeof(struct user_data), GFP_KERNEL)) != NULL) {
+                    //     (gbp->data).t_stamp = (unsigned long)ktime_get_seconds();      
+                    //     tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
+                    //     (gbp->data).t_high = (unsigned int)ktime_to_ns(tmp_ktime);
+                    //     list_add(&gbp->giant_baby_head, &lifo_head);
+                    //     return 0;
+                    // }
                 }
             }
         }
     }
-
     return -1;
 }
 
@@ -169,7 +177,7 @@ static int __init hcsr04_init(void)
     int errn = 0;
 
     /* Initialise device */
-    if ((majn = alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04")) < 0) return majn;
+    if ((errn = alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04")) < 0) return errn;
     cdev_init(&hcsr04_cdev, &hcsr04_fops);
     hcsr04_cdev.owner = THIS_MODULE;
     
@@ -205,3 +213,8 @@ static void __exit hcsr04_exit(void)
     unregister_chrdev_region(hcsr04_devt, 1);
 }
 
+
+module_init(hcsr04_init);
+module_exit(hcsr04_exit);
+MODULE_AUTHOR("Eyitope Adelowo");
+MODULE_LICENSE("GPL");

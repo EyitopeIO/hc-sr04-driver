@@ -24,13 +24,12 @@
 
 struct hcsr04_data 
 {
-    unsigned long long t_stamp;
-    int t_high;
+    unsigned long t_stamp;
+    unsigned int t_high;
 };
 
-
 const char any[] = "any";
-struct hcsr04_data rcvd;;
+struct hcsr04_data rcvd;
 size_t bread = 0;
 
 
@@ -58,15 +57,17 @@ int main(int argc, char *argv[])
     time(&ltime);
     printf("Start of test: %s\n", ctime(&ltime));   // Get ctime here
 
-    if ( (fd = open(devname, O_RDWR)) < 0) {
+    if ((fd = open(devname, O_RDWR)) < 0) {
         perror(NULL);
         exit(EXIT_FAILURE);
     }
 
+    printf("Opened /dev/hcsr04\n");
+
     while(iter--)
     {
-        write(fd, any, sizeof(any));
-        if ((bread = read(fd, &rcvd, sizeof(struct hcsr04_data) * 1)) < 0)
+        write(fd, "1", 1);
+        if ((bread = read(fd, &rcvd, sizeof(struct hcsr04_data)) < 0))
         {
             perror("read: FAIL");
             printf("Bytes read: %d\n", bread);
