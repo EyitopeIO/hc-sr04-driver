@@ -99,7 +99,7 @@ ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f
     };   
     struct list_head *i, *tmp;
     struct user_data *usd;
-    size_t counter = 0;
+    size_t counter = count / sizeof(struct hcsr04_data);
     unsigned long not_copied = 0;
     
     if (count == 0) return 0;
@@ -111,7 +111,7 @@ ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f
         else tmpbuff[counter++] = usd->data;      
         list_del(i);
         kfree(usd);    
-        if (counter == count) break;
+        if ((counter * sizeof(struct hcsr04_data)) == count) break;
     }  
     not_copied = copy_to_user(buf, tmpbuff, sizeof(tmpbuff)*counter);
     return sizeof(tmpbuff) * counter;   

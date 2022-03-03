@@ -20,12 +20,19 @@
  * Minimum time between read and write to device in microseconds.  
 */
 #define READ_INTERVAL 6300
+#define DIVISION_CONSTANT 58
 
 struct hcsr04_data 
 {
     unsigned long long t_stamp;
     int t_high;
 };
+
+
+const char any[] = "any";
+struct hcsr04_data rcvd;;
+size_t bread = 0;
+
 
 unsigned long millis()
 {
@@ -38,10 +45,11 @@ unsigned long millis()
 int main(int argc, char *argv[])
 {
     unsigned iter = 7;     // Get from *argv[] and convert to int
+    int cc = 7;
     unsigned long duration = 0;
     double distance = 0.0;
-    int fd = -1;
-    const char devname = "/dev/hcsr04";
+    int fd = 0;
+    const char devname[] = "/dev/hcsr04";
     time_t ltime;
 
     printf(" *** Test application for HC-SR04 driver ***\n");
@@ -57,19 +65,23 @@ int main(int argc, char *argv[])
 
     while(iter--)
     {
-        duration = millis();
-        // Send echo pulse here by write() to device.
-        // Block here with read() until data available.
-        duration = millis() - duration;
+        write(fd, any, sizeof(any));
+        if ((bread = read(fd, &rcvd, sizeof(struct hcsr04_data) * 1)) < 0)
+        {
+            perror("read: FAIL");
+            printf("Bytes read: %d\n", bread);
+            continue;
+        }
 
         printf (
             "\r-------------------------------------"
             "                                       "
             "count:\t\t%i                           "
-            "Duration:\t\t%d s                      "
-            "Distance:\t\t%d cm                     "
-            "--------------------------------------",
-        iter, (unsigned int)duration, distance);
+            "Pulse duration:\t\t%d us               "
+            "Distance:\t\t%.1f cm                   "
+            "-------------------------------------- ",
+        (cc - iter), rcvd.t_high, (rcvd.t_high/DIVISION_CONSTANT)
+        );
 
         sleep(1);
     }
