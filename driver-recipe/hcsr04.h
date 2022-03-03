@@ -20,6 +20,6 @@
 */
 struct hcsr04_data 
 {
-    unsigned long long t_stamp;
-    int t_high;
+    unsigned long t_stamp;
+    unsigned int t_high;
 };

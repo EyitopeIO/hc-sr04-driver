@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
     }
 
     time(&ltime);
+    close(fd);
     printf("\nEnd of test: %s\n", ctime(&ltime));
 
     return 0;
