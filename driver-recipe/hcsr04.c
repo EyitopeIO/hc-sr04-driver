@@ -37,15 +37,11 @@
 #define TRIG_pin 23             // hcsr04 trigger pin
 #define ECHO_pin 24             // hcsr04 echo pin
 #define TRIG_tme 10             // hcsr04 trigger period
-#define PLSE_tme 200            // Time for 8 pulses at 40kHz
-#define SPEED_OF_SOUND 340      // In metres per second
-#define ECHO_timeout 100000000
-#define MICRO 0.000001          // Micro multiplier
-#define MAX_READS 5             
+#define ECHO_tmo 1000000000
 
 static dev_t hcsr04_devt;
 struct cdev hcsr04_cdev; 
-// static char buffer[64];
+static char buffer[64];
 unsigned long not_copied = 0;
 int pending_read = 0;
 char *hcsr04_name = "hcsr04";
@@ -73,22 +69,11 @@ struct hcsr04_data usd;
 */
 int hcsr04_open(struct inode *inode, struct file *file) 
 {   
-    int error_n = 0;
-    if ((error_n = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return error_n;
-    if ((error_n = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return error_n;
-    if ((error_n = gpio_direction_input(ECHO_pin)) < 0 ) return error_n;
-    if ((error_n = gpio_direction_output(TRIG_pin, 0)) < 0 ) return error_n;
-    
-    TRIG_timeout = ktime_set(1, 0); // Set timeout to 1 second
-    
-    return 0;
+    pending_read = 0;
 }
 
 int hcsr04_release(struct inode *inode, struct file *file) 
 {
-    gpio_free(ECHO_pin);
-    gpio_free(TRIG_pin);
-    free_irq(gpio_to_irq(ECHO_pin), NULL);
     return 0;
 }
 
@@ -175,6 +160,7 @@ struct file_operations hcsr04_fops = {
 static int __init hcsr04_init(void)  
 {
     int errn = 0;
+    int error_n = 0;
 
     /* Initialise device */
     if ((errn = alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04")) < 0) return errn;
@@ -202,12 +188,21 @@ static int __init hcsr04_init(void)
         return errn;
     }
 
+    if ((error_n = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return error_n;
+    if ((error_n = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return error_n;
+    if ((error_n = gpio_direction_input(ECHO_pin)) < 0 ) return error_n;
+    if ((error_n = gpio_direction_output(TRIG_pin, 0)) < 0 ) return error_n;
+    
+    TRIG_timeout = ktime_set(0, ECHO_tmo); // Set timeout to 1 second
+    
     printk(KERN_INFO "%s loaded.\n", format_dev_t(buffer, hcsr04_devt));
     return 0;
 }
 
 static void __exit hcsr04_exit(void)
 {
+    gpio_free(ECHO_pin);
+    gpio_free(TRIG_pin);
     device_destroy(hcsr04_class, hcsr04_devt);
     cdev_del(&hcsr04_cdev);
     unregister_chrdev_region(hcsr04_devt, 1);
