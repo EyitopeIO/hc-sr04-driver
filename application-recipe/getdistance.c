@@ -87,8 +87,7 @@ int main(int argc, char *argv[])
             "Ping:\t\t%i of %i                      \n"
             "Pulse duration:\t\t%d us               \n"
             "Distance:\t\t%.1f cm                   \n",
-        (cc - iter), cc, rcvd.t_high, (double)(rcvd.t_high/DIVISION_CONSTANT)
-        );
+        (cc - iter), cc, rcvd.t_high, (double)((rcvd.t_high/1000)/DIVISION_CONSTANT));
         sleep(1);
         clearscreen();
     }

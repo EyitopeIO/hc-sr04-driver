@@ -160,7 +160,6 @@ struct file_operations hcsr04_fops = {
 static int __init hcsr04_init(void)  
 {
     int errn = 0;
-    int error_n = 0;
 
     /* Initialise device */
     if ((errn = alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04")) < 0) return errn;
@@ -188,10 +187,10 @@ static int __init hcsr04_init(void)
         return errn;
     }
 
-    if ((error_n = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return error_n;
-    if ((error_n = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return error_n;
-    if ((error_n = gpio_direction_input(ECHO_pin)) < 0 ) return error_n;
-    if ((error_n = gpio_direction_output(TRIG_pin, 0)) < 0 ) return error_n;
+    if ((errn = gpio_request(TRIG_pin, "Trigger pin")) < 0 ) return errn;
+    if ((errn = gpio_request(ECHO_pin, "Echo pin")) < 0 ) return errn;
+    if ((errn = gpio_direction_input(ECHO_pin)) < 0 ) return errn;
+    if ((errn = gpio_direction_output(TRIG_pin, 0)) < 0 ) return errn;
     
     TRIG_timeout = ktime_set(0, ECHO_tmo); // Set timeout to 1 second
     
