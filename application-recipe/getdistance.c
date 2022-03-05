@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 
     if (argc < 2) {
         printf("You must specify number of pings. Quitting.\n");
-        printf("Usage\t:getdistance <number_of_pings>\n");
+        printf("Usage: /usr/bin/getdistance <number_of_pings>\n");
 
         return -1;
     }
@@ -65,7 +65,11 @@ int main(int argc, char *argv[])
     double distance = 0.0;
     time_t ltime;
 
-    cc = atoi(argv[1]);
+    if((cc = atoi(argv[1])) == 0) {
+        printf("Invalid argument. Exiting...");
+        exit(EXIT_FAILURE);
+    }
+
     iter = cc;
 
     printf(" *** Test application for HC-SR04 driver ***\n");

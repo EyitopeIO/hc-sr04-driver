@@ -70,6 +70,7 @@ struct hcsr04_data usd;
 int hcsr04_open(struct inode *inode, struct file *file) 
 {   
     pending_read = 0;
+    return 0;
 }
 
 int hcsr04_release(struct inode *inode, struct file *file) 
