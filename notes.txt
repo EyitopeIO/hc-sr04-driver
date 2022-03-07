@@ -1,0 +1,55 @@
+bitbake -c menuconfig virtual/kernel
+bitbake -c cleanall <image_name>
+
+Config files in tmp/work/machine/kernerl/...
+bitbake -c savedefconfig virtual/kernel [ <- Save this to our custom layer ]
+
+md5sum ../../../poky/meta/files/common-licenses/MIT
+
+
+"
+Rather than doing what turns out to be a rather dangerous "fixup" if
+we see a file with a different path but the same inode as another file
+we've previously seen, throw and abort. Direct the user to a wiki page
+where we can maintain information about what this error means.
+"
+The error below because of name mismatches.
+ERROR: python3-rtimu-git-r0 do_install: 'python3 install --root=/home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work/cortexa7t2hf-neon-vfpv4-poky-linux-gnueabi/python3-rtimu/git-r0/image     --prefix=/usr     --install-lib=/usr/lib/python3.8/site-packages     --install-data=/usr/share' execution failed.
+
+----------------
+ERROR: getdistance-1.0-r0 do_package_qa: QA Issue: File /usr/bin/getdistance in package getdistance doesn't have GNU_HASH (didn't pass LDFLAGS?) [ldflags]
+ERROR: getdistance-1.0-r0 do_package_qa: QA run found fatal errors. Please consider fixing them.
+ERROR: Logfile of failure stored in: /home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work/cortexa7t2hf-neon-vfpv4-poky-linux-gnueabi/getdistance/1.0-r0/temp/log.do_package_qa.854392
+ERROR: Task (/home/eyi/yocto/yocto-work-dir/meta-raspberrypi/recipes-kernel/hcsr04-application/getdistance_1.0.bb:do_package_qa) failed with exit code '1'
+
+
+Fixed by adding LDFLAG
+
+-------------
+
+Link to new GPIO interface rather than old interface used in class.
+<https://www.kernel.org/doc/html/latest/driver-api/gpio/driver.html>
+
+
+
+Could not use MIT license for this because of the error.
+| FATAL: modpost: GPL-incompatible module hcsr04.ko uses GPL-only symbol 'gpiod_set_raw_value'
+| make[3]: *** [/home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work-shared/raspberrypi3/kernel-source/scripts/Makefile.modpost:94: __modpost] Error 1
+| make[2]: *** [/home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work-shared/raspberrypi3/kernel-source/Makefile:1645: modules] Error 2
+| make[2]: Leaving directory '/home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work-shared/raspberrypi3/kernel-build-artifacts'
+| make[1]: *** [Makefile:179: sub-make] Error 2
+| make[1]: Leaving directory '/home/eyi/yocto/yocto-work-dir/rpi-build/tmp/work-shared/raspberrypi3/kernel-source'
+| make: *** [Makefile:6: all] Error 2
+| ERROR: oe_runmake failed
+
+
+BUffer overflow detected.
+Compilation worked even without module init, but symbols were not recognised.
+
+
+Driver crash because I didn't return a value on open()
+
+
+
+"Attributes should be ASCII text files, preferably with only one value per file. It is noted that it may not be efficient to contain only one value per file, so it is socially acceptable to express an array of values of the same type."
+https://www.kernel.org/doc/html/latest/filesystems/sysfs.html?highlight=__attr
