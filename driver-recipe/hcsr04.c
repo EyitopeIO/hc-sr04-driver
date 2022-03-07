@@ -54,6 +54,7 @@ static unsigned long not_copied = 0;
 static char buffer[64];
 static int pending_read = 0;
 char *hcsr04_name = "hcsr04";
+char *hcsr04_rootname = "rangesensor";
 struct class *hcsr04_class;
 struct device *hcsr04_device;
 struct device *hcsr04_device_root;
@@ -63,7 +64,7 @@ ktime_t ECHO_high_starttime;
 ktime_t ECHO_high_stooptime;
 ktime_t tmp_ktime;
 ktime_t TRIG_timeout;
-static struct hcsr04_data usd;                     // user space data
+struct hcsr04_data usd;                     // user space data
 
 static struct hcsr04_sysfs_data bucket[USER_mrq];
 
@@ -71,12 +72,6 @@ static struct hcsr04_sysfs_data ldata = {
     .t_high = 0,
     .m_dist = 0,
 };
-
-// struct sysfs_last_five_readings {
-//     struct attribute attr;
-//     ssize_t (*show)(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
-//     ssize_t (*store)(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
-// };
 
 struct device_attribute last5 = {
     .attr = {
@@ -105,16 +100,6 @@ struct device_attribute last5 = {
 ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     ssize_t ret = 0;
-
-    // list_for_each_safe(i, tmp, &lifo_head) 
-    // { 
-    //     usd = list_entry(i, struct user_data, giant_baby_head);
-    //     if (usd == NULL) tmpbuff[counter++] = emptyd;
-    //     else tmpbuff[counter++] = usd->data;      
-    //     list_del(i);
-    //     kfree(usd);    
-    //     if ((counter * sizeof(struct hcsr04_data)) == count) break;
-    // }  
 
     ret = sprintf(buf, 
             "s/n\t\t\tDuration\t\t\tMeasured\n"
@@ -153,7 +138,7 @@ int hcsr04_open(struct inode *inode, struct file *file)
     pending_read = 0;
     bx = 0;
     return 0;
-}
+} 
 
 int hcsr04_release(struct inode *inode, struct file *file) 
 {
@@ -161,29 +146,7 @@ int hcsr04_release(struct inode *inode, struct file *file)
 }
 
 ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) 
-{
-    // struct hcsr04_data tmpbuff[MAX_READS];
-    // struct hcsr04_data emptyd = {   // Represents a NULL or unavailable data.
-    //     .t_stamp = 0,
-    //     .t_high = 0,
-    // };   
-    // struct list_head *i, *tmp;
-    // struct user_data *usd;
-    // size_t counter = count / sizeof(struct hcsr04_data);
-    
-    // if (count == 0) return 0;
-    
-    // list_for_each_safe(i, tmp, &lifo_head) 
-    // { 
-    //     usd = list_entry(i, struct user_data, giant_baby_head);
-    //     if (usd == NULL) tmpbuff[counter++] = emptyd;
-    //     else tmpbuff[counter++] = usd->data;      
-    //     list_del(i);
-    //     kfree(usd);    
-    //     if ((counter * sizeof(struct hcsr04_data)) == count) break;
-    // }  
-    // not_copied = copy_to_user(buf, tmpbuff, sizeof(tmpbuff)*counter);
-    
+{   
     not_copied = copy_to_user(buf, &usd, sizeof(usd));
     pending_read = 0;
     return sizeof(usd);
@@ -191,7 +154,6 @@ ssize_t hcsr04_read(struct file *filp, char __user *buf, size_t count, loff_t *f
 
 ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff_t * offset)
 {
-
     if (pending_read)
         return -1;
     
@@ -217,19 +179,13 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                     tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
                     usd.t_stamp = (unsigned long)ktime_get_seconds();      
                     usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
-             
-                    // if ((ldata = kmalloc(sizeof(struct list_data), GFP_KERNEL)) != NULL) {
-                    //     (ldata->data).t_high = (unsigned int)(usd.t_high/1000);
-                    //     (ldata->data).m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
-                    //     list_add_tail(&ldata->giant_baby_head, )
-                    // }
 
                     if (bx < USER_mrq) {
                         ldata.t_high = (unsigned int)(usd.t_high/1000);
                         ldata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
                         bucket[bx++] = ldata;
-                        return 0;
                     }
+                    return 0;
                 }
             }
         }
@@ -259,17 +215,12 @@ static int __init hcsr04_init(void)
         return errn;
     }
 
-    hcsr04_device_root = root_device_register(hcsr04_name);
-    if (IS_ERR(hcsr04_device)) {
-        errn = PTR_ERR(hcsr04_device);
+    hcsr04_device_root = root_device_register(hcsr04_rootname);
+    if (IS_ERR(hcsr04_device_root)) {
+        errn = PTR_ERR(hcsr04_device_root);
         printk(KERN_WARNING "Failed to create entry in /sys/device\n");
         return errn;
     }
-
-    // if ((errn = device_create_file(hcsr04_device, &last5)) < 0) {
-    //     printk(KERN_WARNING "Failed to create entry in /sys/device/%s\n", hcsr04_name);
-    //     return errn;
-    // }
 
     hcsr04_class = class_create(THIS_MODULE, hcsr04_name);
     if (IS_ERR(hcsr04_class)) {
@@ -282,6 +233,11 @@ static int __init hcsr04_init(void)
     if (IS_ERR(hcsr04_device)) {
         errn = PTR_ERR(hcsr04_device);
         printk(KERN_WARNING "Failed to create device\n");
+        return errn;
+    }
+
+    if ((errn = device_create_file(hcsr04_device, &last5)) < 0) {
+        printk(KERN_WARNING "Failed to create entry in /sys/device/%s\n", hcsr04_name);
         return errn;
     }
 
@@ -306,14 +262,13 @@ static void __exit hcsr04_exit(void)
 {
     gpio_free(ECHO_pin);
     gpio_free(TRIG_pin);
+    device_remove_file(hcsr04_device, &last5);
     device_destroy(hcsr04_class, hcsr04_devt);
     class_destroy (hcsr04_class);
-    // device_remove_file(hcsr04_device, &last5);
     root_device_unregister(hcsr04_device_root);
     cdev_del(&hcsr04_cdev);
     unregister_chrdev_region(hcsr04_devt, 1);
 }
-
 
 module_init(hcsr04_init);
 module_exit(hcsr04_exit);
