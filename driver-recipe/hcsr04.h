@@ -15,9 +15,10 @@
  * Data structure to get a unit of data from the driver.
  *
  * t_stamp:      Unix time when the device was triggered.
- * t_echo:       Time between trigger and the echo.
- * t_high:       Measured distance     
+ * t_high:       Echo pulse duration
+ * m_dist:       Measured distance     
 */
+
 struct hcsr04_data 
 {
     unsigned long t_stamp;
