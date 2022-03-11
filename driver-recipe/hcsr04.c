@@ -22,6 +22,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/ktime.h>
+#include <linux/kfifo.h>
 #include <linux/device.h>
 #include <linux/time64.h>
 #include <linux/delay.h>
@@ -66,7 +67,12 @@ ktime_t tmp_ktime;
 ktime_t TRIG_timeout;
 struct hcsr04_data usd;                     // user space data
 
-static struct hcsr04_sysfs_data bucket[USER_mrq];
+// static struct hcsr04_sysfs_data bucket[USER_mrq];
+static struct hcsr04_sysfs_qdata bucket[USER_mrq];
+
+struct hcsr04_sysfs_qdata qdata, tmp_qdata;
+DECLARE_KFIFO(hcsr04_sysfs_queue, struct hcsr04_sysfs_qdata, USER_mrq);
+
 
 static struct hcsr04_sysfs_data ldata = {
     .t_high = 0,
@@ -82,14 +88,6 @@ struct device_attribute last5 = {
     .store = hcsr04_sysfs_store
 };
 
-// struct list_head giant_baby_head;
-// static LIST_HEAD(giant_baby_head);
-
-// struct list_data {
-//     struct hcsr04_sysfs_data data;
-//     struct list_head giant_baby_head;
-// } *ldata;
-
 /* ------------------------------------------*/
 
 
@@ -100,25 +98,33 @@ struct device_attribute last5 = {
 ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     ssize_t ret = 0;
+    ssize_t unu = 0;
+
+    unu = kfifo_avail(hcsr04_sysfs_queue);
+
+    for (int i = 0; i < unu; i++) {
+        kfifo_get (&hcsr04_sysfs_queue, &tmp_qdata);
+        bucket[i] = tmp_qdata;
+    }
 
     ret = sprintf(buf, 
-            "s/n\t\t\tDuration\t\t\tMeasured\n"
-            "[1]\t\t\t%dus\t\t\t%dcm\n"
-            "[2]\t\t\t%dus\t\t\t%dcm\n"
-            "[3]\t\t\t%dus\t\t\t%dcm\n"
-            "[4]\t\t\t%dus\t\t\t%dcm\n"
-            "[5]\t\t\t%dus\t\t\t%dcm\n",
-            bucket[0].t_high, bucket[0].m_dist,
-            bucket[1].t_high, bucket[1].m_dist,
-            bucket[2].t_high, bucket[2].m_dist,
-            bucket[3].t_high, bucket[3].m_dist,
-            bucket[4].t_high, bucket[4].m_dist
+            "S/n\t\tTimestamp\t\tDuration\t\tMeasured\n"
+            "[1]\t\t%lus\t\t%dus\t\t%dcm\n"
+            "[2]\t\t%lus\t\t%dus\t\t%dcm\n"
+            "[3]\t\t%lus\t\t%dus\t\t%dcm\n"
+            "[4]\t\t%lus\t\t%dus\t\t%dcm\n"
+            "[5]\t\t%lus\t\t%dus\t\t%dcm\n",
+            bucket[0].data.t_stamp, bucket[0].data.t_high, bucket[0].m_dist,
+            bucket[1].data.t_stamp, bucket[1].data.t_high, bucket[1].m_dist,
+            bucket[2].data.t_stamp, bucket[2].data.t_high, bucket[2].m_dist,
+            bucket[3].data.t_stamp, bucket[3].data.t_high, bucket[3].m_dist,
+            bucket[4].data.t_stamp, bucket[4].data.t_high, bucket[4].m_dist,
     );
 
-    ldata.t_high = 0;
-    ldata.m_dist = 0;
-    for (bx = 0; bx < USER_mrq; bx++) bucket[bx] = ldata;
-    bx = 0;
+    // ldata.t_high = 0;
+    // ldata.m_dist = 0;
+    // for (bx = 0; bx < USER_mrq; bx++) bucket[bx] = ldata;
+    // bx = 0;
 
     return ret;
 }
@@ -180,11 +186,24 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                     usd.t_stamp = (unsigned long)ktime_get_seconds();      
                     usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
 
-                    if (bx < USER_mrq) {
-                        ldata.t_high = (unsigned int)(usd.t_high/1000);
-                        ldata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
-                        bucket[bx++] = ldata;
+                    // if (bx < USER_mrq) {
+                    //     ldata.t_high = (unsigned int)(usd.t_high/1000);
+                    //     ldata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
+                    //     bucket[bx++] = ldata;
+                    // }
+
+                    qdata.data.t_stamp = usd.t_stamp;
+                    qdata.data.t_high = usd.t_high;
+                    qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
+
+                    if (kfifo_is_full(&hcsr04_sysfs_queue)) {
+                        kfifo_get (&hcsr04_sysfs_queue, &tmp_qdata);
+                        kfifo_put(&hcsr04_sysfs_queue, qdata);
                     }
+                    else {
+                        kfifo_put(&hcsr04_sysfs_queue, qdata);
+                    }
+
                     return 0;
                 }
             }
@@ -254,6 +273,15 @@ static int __init hcsr04_init(void)
     for (bx = 0; bx < USER_mrq; bx++) bucket[bx] = ldata;
     bx = 0;
 
+    /* Assume initialization always successfull */
+    INIT_KFIFO(hcsr04_sysfs_queue);
+
+    for (int i = 0; i < USER_mrq; i++) {
+        bucket[i].data.t_stamp = 0;
+        bucket[i].data.t_high = 0;
+        bucket[i].m_dist = 0;
+    }
+
     printk(KERN_INFO "%s loaded.\n", format_dev_t(buffer, hcsr04_devt));
     return 0;
 }
@@ -262,6 +290,7 @@ static void __exit hcsr04_exit(void)
 {
     gpio_free(ECHO_pin);
     gpio_free(TRIG_pin);
+    kfifo_free(hcsr04_sysfs_queue);
     device_remove_file(hcsr04_device, &last5);
     device_destroy(hcsr04_class, hcsr04_devt);
     class_destroy (hcsr04_class);

@@ -30,3 +30,9 @@ struct hcsr04_sysfs_data
     unsigned int t_high;
     unsigned int m_dist;
 };
+
+struct hcsr04_sysfs_qdata
+{
+    struct hcsr04_data data;
+    unsigned int m_dist;
+};

@@ -96,9 +96,10 @@ int main(int argc, char *argv[])
         printf("\r-------------------------------------\n"
                 "                                       \n"
                 "Ping:\t\t%i of %i                      \n"
+                "Timestamp:\t\t%lu s                     \n"
                 "Pulse duration:\t\t%d us               \n"
                 "Distance:\t\t%.1f cm                   \n",
-        (cc - iter), cc, (int)(rcvd.t_high/1000), (double)((rcvd.t_high/1000)/DIVISION_CONSTANT));
+        (cc - iter), cc, (rcvd.t_stamp), (int)(rcvd.t_high/1000), (double)((rcvd.t_high/1000)/DIVISION_CONSTANT));
         sleep(1);
         clearscreen();
     }
