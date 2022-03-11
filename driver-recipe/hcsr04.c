@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/ktime.h>
 #include <linux/kfifo.h>
+#include <linux/list.h>
 #include <linux/device.h>
 #include <linux/time64.h>
 #include <linux/delay.h>
@@ -66,12 +67,27 @@ ktime_t tmp_ktime;
 ktime_t TRIG_timeout;
 struct hcsr04_data usd;                     // user space data
 
-static struct hcsr04_sysfs_qdata bucket[USER_mrq];
+/* The lifo */
+struct hcsr04_lifo_node
+{
+    struct hcsr04_sysfs_ldata data;
+    struct list_head mylist;
+};
 
-struct hcsr04_sysfs_qdata qdata;
+struct hcsr04_lifo_node *lnode, *tmp_node;
 
-/* Last argument 8 must be a power of two */
-DEFINE_KFIFO(hcsr04_sysfs_queue, struct hcsr04_sysfs_qdata, 8);
+struct hcsr04_sysfs_ldata bucket[USER_mrq];
+
+struct hcsr04_sysfs_ldata bucket_data = {
+    .t_stamp = 0,
+    .t_high = 0,
+    .m_dist = 0
+};
+
+int number_of_nodes = 0;
+int list_busy = 0;
+
+LIST_HEAD(head_node);
 
 struct device_attribute last5 = {
     .attr = {
@@ -82,13 +98,6 @@ struct device_attribute last5 = {
     .store = hcsr04_sysfs_store
 };
 
-struct hcsr04_sysfs_qdata tmp_qdata = {
-    .data = {
-        .t_stamp = 0,
-        .t_high = 0
-    },
-    .m_dist = 0
-};
 
 /* ------------------------------------------*/
 
@@ -100,14 +109,23 @@ struct hcsr04_sysfs_qdata tmp_qdata = {
 ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     ssize_t ret = 0;
-    ssize_t unu = 0;
     int i;
 
-    unu = kfifo_avail(&hcsr04_sysfs_queue);
+    struct hcsr04_sysfs_ldata btmp;
 
-    for (i = 0; i < unu; i++) {
-        kfifo_get(&hcsr04_sysfs_queue, &tmp_qdata);
-        bucket[i] = tmp_qdata;
+    while (list_busy);
+
+    list_busy = 1;
+    i = 0;
+
+    list_for_each_entry_safe(lnode, tmp_node, &head_node, mylist) {
+        btmp.t_stamp = (lnode->data).t_stamp;
+        btmp.t_high = (lnode->data).t_high;
+        btmp.m_dist = (lnode->data).m_dist;
+        bucket[i] = btmp;
+        list_del(&lnode->mylist);
+        kfree(&lnode);
+        i++;
     }
 
     ret = sprintf(buf, 
@@ -117,12 +135,14 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
             "[3]\t\t%lu\t\t%dus\t\t%dcm\n"
             "[4]\t\t%lu\t\t%dus\t\t%dcm\n"
             "[5]\t\t%lu\t\t%dus\t\t%dcm\n",
-            bucket[0].data.t_stamp, bucket[0].data.t_high, bucket[0].m_dist,
-            bucket[1].data.t_stamp, bucket[1].data.t_high, bucket[1].m_dist,
-            bucket[2].data.t_stamp, bucket[2].data.t_high, bucket[2].m_dist,
-            bucket[3].data.t_stamp, bucket[3].data.t_high, bucket[3].m_dist,
-            bucket[4].data.t_stamp, bucket[4].data.t_high, bucket[4].m_dist
+            bucket[0].t_stamp, bucket[0].t_high, bucket[0].m_dist,
+            bucket[1].t_stamp, bucket[1].t_high, bucket[1].m_dist,
+            bucket[2].t_stamp, bucket[2].t_high, bucket[2].m_dist,
+            bucket[3].t_stamp, bucket[3].t_high, bucket[3].m_dist,
+            bucket[4].t_stamp, bucket[4].t_high, bucket[4].m_dist
     );
+
+    list_busy = 0;
 
     return ret;
 }
@@ -185,14 +205,32 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                     usd.t_stamp = (unsigned long)present_timestamp.tv_sec;    
                     usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
 
-                    qdata.data.t_stamp = usd.t_stamp;
-                    qdata.data.t_high = usd.t_high;
-                    if (!kfifo_put(&hcsr04_sysfs_queue, qdata)) {
-                        kfifo_skip(&hcsr04_sysfs_queue);
-                        kfifo_put(&hcsr04_sysfs_queue, qdata);
-                    }
+                    while (list_busy);
 
-                    qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
+                    if ((tmp_node = kmalloc(sizeof(struct hcsr04_lifo_node), GFP_KERNEL)) != NULL) {
+                        (tmp_node->data).t_stamp = usd.t_stamp;
+                        (tmp_node->data).t_high = usd.t_high;
+                        (tmp_node->data).m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
+                        // INIT_LIST_HEAD(&tmp_node->mylist);
+                        list_busy = 1;
+                        if (number_of_nodes < USER_mrq) {
+                            list_add(&tmp_node->mylist, &head_node);
+                            printk(KERN_INFO "New value added to list\n");
+                            number_of_nodes++;
+                        }
+                        else if (number_of_nodes >= USER_mrq) {
+                            lnode = list_first_entry(&head_node, struct hcsr04_lifo_node, mylist);
+                            list_del(&lnode->mylist);
+                            printk(KERN_INFO "Entry removed from list\n");
+                            kfree(lnode);
+                            list_add(&tmp_node->mylist, &head_node);
+
+                        }
+                        else {
+                            kfree(tmp_node);
+                        }
+                        list_busy = 0;
+                    }
 
                     return 0;
                 }
@@ -257,25 +295,12 @@ static int __init hcsr04_init(void)
     if ((errn = gpio_direction_output(TRIG_pin, 0)) < 0 ) return errn;
     
     TRIG_timeout = ktime_set(0, ECHO_tmo); // Timeout = 0 second + ECHO_tms nanoseconds
-    
-    /* Put bucket array in known state */
-    // ldata.t_high = 0;
-    // ldata.m_dist = 0;
-    // for (bx = 0; bx < USER_mrq; bx++) bucket[bx] = ldata;
-    // bx = 0;
-
-    /* Assume initialization always successfull */
-    // INIT_KFIFO(hcsr04_sysfs_queue);
-    // if ((errn = kfifo_initialized(&hcsr04_sysfs_queue))) {
-    //     printk(KERN_INFO "Fifo not initialized\n");
-    //     return EINVAL;
-    // }
 
     for (i = 0; i < USER_mrq; i++) {
-        bucket[i].data.t_stamp = 0;
-        bucket[i].data.t_high = 0;
-        bucket[i].m_dist = 0;
+        bucket[i] = bucket_data;
     }
+
+    INIT_LIST_HEAD(&head_node);
 
     printk(KERN_INFO "%s loaded.\n", format_dev_t(buffer, hcsr04_devt));
     return 0;
@@ -285,7 +310,10 @@ static void __exit hcsr04_exit(void)
 {
     gpio_free(ECHO_pin);
     gpio_free(TRIG_pin);
-    kfifo_free(&hcsr04_sysfs_queue);
+    list_for_each_entry_safe(lnode, tmp_node, &head_node, mylist) {
+        list_del(&lnode->mylist);
+        kfree(&lnode);
+    }
     device_remove_file(hcsr04_device, &last5);
     device_destroy(hcsr04_class, hcsr04_devt);
     class_destroy (hcsr04_class);
