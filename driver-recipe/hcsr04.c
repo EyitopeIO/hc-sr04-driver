@@ -105,7 +105,7 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
 
     unu = kfifo_avail(&hcsr04_sysfs_queue);
 
-    for (i = 0; i < USER_mrq; i++) {
+    for (i = 0; i < unu; i++) {
         kfifo_get(&hcsr04_sysfs_queue, &tmp_qdata);
         bucket[i] = tmp_qdata;
     }
@@ -187,7 +187,10 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
 
                     qdata.data.t_stamp = usd.t_stamp;
                     qdata.data.t_high = usd.t_high;
-                    kfifo_put(&hcsr04_sysfs_queue, qdata);  // Returns zero if full
+                    if (!kfifo_put(&hcsr04_sysfs_queue, qdata)) {
+                        kfifo_skip(&hcsr04_sysfs_queue);
+                        kfifo_put(&hcsr04_sysfs_queue, qdata);
+                    }
 
                     qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
 
