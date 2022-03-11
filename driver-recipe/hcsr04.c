@@ -57,7 +57,7 @@ char *hcsr04_rootname = "rangesensor";
 struct class *hcsr04_class;
 struct device *hcsr04_device;
 struct device *hcsr04_device_root;
-struct timespec current_time;
+struct timespec present_timestamp;
 
 static int bx;
 ktime_t ECHO_high_starttime;
@@ -181,24 +181,15 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                     
                     ECHO_high_stooptime = ktime_get_real_ns();
                     tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
-                    getnstimeofday(&current_time);
-                    usd.t_stamp = (unsigned long)current_time.tv_sec;    
+                    getnstimeofday(&present_timestamp);
+                    usd.t_stamp = (unsigned long)present_timestamp.tv_sec;    
                     usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
 
                     qdata.data.t_stamp = usd.t_stamp;
                     qdata.data.t_high = usd.t_high;
-                    qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
+                    kfifo_put(&hcsr04_sysfs_queue, qdata);  // Returns zero if full
 
-                    if (kfifo_avail(&hcsr04_sysfs_queue) >= USER_mrq) {
-                        kfifo_get(&hcsr04_sysfs_queue, &tmp_qdata);
-                        tmp_qdata.data.t_stamp = 0; // set to zero so compiler doesn't complain variable does nothing
-                        tmp_qdata.data.t_high = 0;
-                        tmp_qdata.m_dist = 0;
-                        kfifo_put(&hcsr04_sysfs_queue, qdata);
-                    }
-                    else {
-                        kfifo_put(&hcsr04_sysfs_queue, qdata);
-                    }
+                    qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
 
                     return 0;
                 }
