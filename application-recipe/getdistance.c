@@ -39,16 +39,16 @@ unsigned long millis()
     return (unsigned long)((tv.tv_sec) * 1000 + (tv.tv_usec) / 1000);
 }
 
-void clearscreen(void)
-{
-    int i;
-    printf("\033[2J");        /*  clear the screen  */
-    printf("\033[H");         /*  position cursor at top-left corner */
-    for (i=1; i<=100; i++) {
-        fflush(stdout);
-        printf(i < 100 ? "\033[H" : "\n");
-    }
-}
+// void clearscreen(void)
+// {
+//     int i;
+//     printf("\033[2J");        /*  clear the screen  */
+//     printf("\033[H");         /*  position cursor at top-left corner */
+//     for (i=1; i<=100; i++) {
+//         fflush(stdout);
+//         printf(i < 100 ? "\033[H" : "\n");
+//     }
+// }
 
 int main(int argc, char *argv[])
 {
@@ -96,12 +96,12 @@ int main(int argc, char *argv[])
         printf("\r-------------------------------------\n"
                 "                                       \n"
                 "Ping:\t\t%i of %i                      \n"
-                "Timestamp:\t\t%lu s                     \n"
+                "Timestamp:\t\t%lu                      \n"
                 "Pulse duration:\t\t%d us               \n"
                 "Distance:\t\t%.1f cm                   \n",
         (cc - iter), cc, (rcvd.t_stamp), (int)(rcvd.t_high/1000), (double)((rcvd.t_high/1000)/DIVISION_CONSTANT));
         sleep(1);
-        clearscreen();
+        // clearscreen();
     }
 
     time(&ltime);

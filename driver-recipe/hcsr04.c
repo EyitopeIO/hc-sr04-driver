@@ -14,9 +14,8 @@
 #include <linux/init.h>
 
 #include <linux/types.h>
+#include <linux/time.h>
 #include <linux/cdev.h>
-#include <linux/list.h>
-#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
@@ -29,7 +28,6 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <asm/uaccess.h>
-#include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/string.h>
 #include <linux/kobject.h>
@@ -59,6 +57,7 @@ char *hcsr04_rootname = "rangesensor";
 struct class *hcsr04_class;
 struct device *hcsr04_device;
 struct device *hcsr04_device_root;
+struct timespec current_time;
 
 static int bx;
 ktime_t ECHO_high_starttime;
@@ -72,13 +71,7 @@ static struct hcsr04_sysfs_qdata bucket[USER_mrq];
 struct hcsr04_sysfs_qdata qdata;
 
 /* Last argument 8 must be a power of two */
-DECLARE_KFIFO(hcsr04_sysfs_queue, struct hcsr04_sysfs_qdata, 8);
-
-
-// static struct hcsr04_sysfs_data ldata = {
-//     .t_high = 0,
-//     .m_dist = 0,
-// };
+DEFINE_KFIFO(hcsr04_sysfs_queue, struct hcsr04_sysfs_qdata, 8);
 
 struct device_attribute last5 = {
     .attr = {
@@ -108,33 +101,28 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
 {
     ssize_t ret = 0;
     ssize_t unu = 0;
-    int i = 0;
+    int i;
 
     unu = kfifo_avail(&hcsr04_sysfs_queue);
 
-    for (i = 0; i < unu; i++) {
+    for (i = 0; i < USER_mrq; i++) {
         kfifo_get(&hcsr04_sysfs_queue, &tmp_qdata);
         bucket[i] = tmp_qdata;
     }
 
     ret = sprintf(buf, 
-            "S/n\t\tTimestamp\t\tDuration\t\tMeasured\n",
-            "[1]\t\t%lus\t\t%dus\t\t%dcm\n",
-            "[2]\t\t%lus\t\t%dus\t\t%dcm\n",
-            "[3]\t\t%lus\t\t%dus\t\t%dcm\n",
-            "[4]\t\t%lus\t\t%dus\t\t%dcm\n",
-            "[5]\t\t%lus\t\t%dus\t\t%dcm\n",
+            "S/n\t\tTimestamp\t\tDuration\t\tMeasured\n"
+            "[1]\t\t%lu\t\t%dus\t\t%dcm\n"
+            "[2]\t\t%lu\t\t%dus\t\t%dcm\n"
+            "[3]\t\t%lu\t\t%dus\t\t%dcm\n"
+            "[4]\t\t%lu\t\t%dus\t\t%dcm\n"
+            "[5]\t\t%lu\t\t%dus\t\t%dcm\n",
             bucket[0].data.t_stamp, bucket[0].data.t_high, bucket[0].m_dist,
             bucket[1].data.t_stamp, bucket[1].data.t_high, bucket[1].m_dist,
             bucket[2].data.t_stamp, bucket[2].data.t_high, bucket[2].m_dist,
             bucket[3].data.t_stamp, bucket[3].data.t_high, bucket[3].m_dist,
             bucket[4].data.t_stamp, bucket[4].data.t_high, bucket[4].m_dist
     );
-
-    // ldata.t_high = 0;
-    // ldata.m_dist = 0;
-    // for (bx = 0; bx < USER_mrq; bx++) bucket[bx] = ldata;
-    // bx = 0;
 
     return ret;
 }
@@ -146,7 +134,7 @@ ssize_t hcsr04_sysfs_store(struct device *dev, struct device_attribute *attr, co
 
 
 /*
-* vfsfs definitions below 
+* vfs definitions below 
 */
 
 int hcsr04_open(struct inode *inode, struct file *file) 
@@ -193,22 +181,17 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                     
                     ECHO_high_stooptime = ktime_get_real_ns();
                     tmp_ktime = ktime_sub(ECHO_high_stooptime, ECHO_high_starttime);
-                    usd.t_stamp = (unsigned long)ktime_get_seconds();      
+                    getnstimeofday(&current_time);
+                    usd.t_stamp = (unsigned long)current_time.tv_sec;    
                     usd.t_high = (unsigned int)ktime_to_ns(tmp_ktime);
-
-                    // if (bx < USER_mrq) {
-                    //     ldata.t_high = (unsigned int)(usd.t_high/1000);
-                    //     ldata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
-                    //     bucket[bx++] = ldata;
-                    // }
 
                     qdata.data.t_stamp = usd.t_stamp;
                     qdata.data.t_high = usd.t_high;
                     qdata.m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
 
-                    if (kfifo_is_full(&hcsr04_sysfs_queue)) {
-                        kfifo_get (&hcsr04_sysfs_queue, &tmp_qdata);
-                        tmp_qdata.data.t_stamp = 0;
+                    if (kfifo_avail(&hcsr04_sysfs_queue) >= USER_mrq) {
+                        kfifo_get(&hcsr04_sysfs_queue, &tmp_qdata);
+                        tmp_qdata.data.t_stamp = 0; // set to zero so compiler doesn't complain variable does nothing
                         tmp_qdata.data.t_high = 0;
                         tmp_qdata.m_dist = 0;
                         kfifo_put(&hcsr04_sysfs_queue, qdata);
@@ -288,7 +271,11 @@ static int __init hcsr04_init(void)
     // bx = 0;
 
     /* Assume initialization always successfull */
-    INIT_KFIFO(hcsr04_sysfs_queue);
+    // INIT_KFIFO(hcsr04_sysfs_queue);
+    // if ((errn = kfifo_initialized(&hcsr04_sysfs_queue))) {
+    //     printk(KERN_INFO "Fifo not initialized\n");
+    //     return EINVAL;
+    // }
 
     for (i = 0; i < USER_mrq; i++) {
         bucket[i].data.t_stamp = 0;
