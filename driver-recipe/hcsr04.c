@@ -98,16 +98,13 @@ struct device_attribute last5 = {
 };
 
 
-/* ------------------------------------------*/
-
-
 /*
 * sysfs definitions below
 */
 
 ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    ssize_t ret = 0;
+    ssize_t ret;
     int i;
 
     struct hcsr04_sysfs_ldata btmp;
@@ -117,17 +114,24 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
 
     list_busy = 1;
     i = 0;
+    ret = 0;
 
     list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
 
-        if (cursor == NULL) break;
+        if ((cursor == NULL) || (i >= USER_mrq))
+            printk(KERN_INFO "show(): End of list seen\n");
+            break;
 
         btmp.t_stamp = (cursor->data).t_stamp;
         btmp.t_high = (cursor->data).t_high;
         btmp.m_dist = (cursor->data).m_dist;
+
         bucket[i] = btmp;
+        
         list_del(&cursor->mylist);
         kfree(&cursor);
+        printk(KERN_INFO "show(): Freed item %d\n", i);
+        
         i++;
     }
 
@@ -179,7 +183,9 @@ int hcsr04_open(struct inode *inode, struct file *file)
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
 
-    // INIT_LIST_HEAD(head_node);
+    INIT_LIST_HEAD(&head_node);
+
+    printk(KERN_INFO "Initialized list\n");
 
     return 0;
 } 
@@ -243,6 +249,7 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                             list_add(&tmp_node->mylist, &head_node);    // New head of list
 
                             lnode = list_last_entry(&head_node, struct hcsr04_lifo_node, mylist);   // tail of list
+                            printk(KERN_INFO "Retrieved tail of list\n");
                             
                             if (lnode != NULL) { 
                                 list_del(&lnode->mylist);
@@ -275,7 +282,6 @@ struct file_operations hcsr04_fops = {
 static int __init hcsr04_init(void)  
 {
     int errn = 0;
-    int i = 0;
 
     if ((errn = alloc_chrdev_region(&hcsr04_devt, 0, 1, "hcsr04")) < 0) return errn;
     cdev_init(&hcsr04_cdev, &hcsr04_fops);
