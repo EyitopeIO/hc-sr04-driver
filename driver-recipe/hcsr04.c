@@ -120,7 +120,6 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
     {
         if ((cursor == NULL) || (i >= USER_mrq))
         {
-            printk(KERN_INFO "show(): End of list seen\n");
             break;
         }
 
@@ -132,7 +131,7 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
         
         list_del(&cursor->mylist);
         kfree(cursor);
-        printk(KERN_INFO "show(): Freed item %d\n", i);
+        // printk(KERN_INFO "show(): Freed item %d\n", i);
         
         i++;
     }
@@ -185,7 +184,7 @@ int hcsr04_open(struct inode *inode, struct file *file)
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
 
-    printk(KERN_INFO "Initialized list\n");
+    printk(KERN_INFO "Variables reset\n");
 
     return 0;
 } 
@@ -244,7 +243,6 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                         if (number_of_nodes < USER_mrq)
                         {
                             list_add(&tmp_node->mylist, &head_node);
-                            printk(KERN_INFO "New value added to list\n");
                             number_of_nodes++;
                         }
                         else if (number_of_nodes >= USER_mrq) {
@@ -252,12 +250,10 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                             list_add(&tmp_node->mylist, &head_node);    // New head of list
 
                             lnode = list_last_entry(&head_node, struct hcsr04_lifo_node, mylist);   // tail of list
-                            printk(KERN_INFO "Retrieved tail of list\n");
                             
                             if (lnode != NULL)
                             { 
                                 list_del(&lnode->mylist);
-                                printk(KERN_INFO "Entry removed from list\n");
                                 kfree(lnode);
                             }
                         }
