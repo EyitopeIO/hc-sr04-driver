@@ -127,7 +127,7 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
         btmp.m_dist = (cursor->data).m_dist;
         bucket[i] = btmp;
         list_del(&cursor->mylist);
-        // kfree(&cursor);
+        kfree(&cursor);
         i++;
     }
 
@@ -173,11 +173,13 @@ int hcsr04_open(struct inode *inode, struct file *file)
         kfree(&cursor);
     }
 
-    bucket_data.t_stamp = 0,
-    bucket_data.t_high = 0,
-    bucket_data.m_dist = 0
+    bucket_data.t_stamp = 0;
+    bucket_data.t_high = 0;
+    bucket_data.m_dist = 0;
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
+
+    // INIT_LIST_HEAD(head_node);
 
     return 0;
 } 
@@ -229,7 +231,7 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                         (tmp_node->data).t_stamp = usd.t_stamp;
                         (tmp_node->data).t_high = usd.t_high;
                         (tmp_node->data).m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
-                        // INIT_LIST_HEAD(&tmp_node->mylist);
+                     
                         list_busy = 1;
                         if (number_of_nodes < USER_mrq) {
                             list_add(&tmp_node->mylist, &head_node);
@@ -237,13 +239,16 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                             number_of_nodes++;
                         }
                         else if (number_of_nodes >= USER_mrq) {
-                            lnode = list_first_entry(&head_node, struct hcsr04_lifo_node, mylist);
-                            if (lnode == NULL)
-                                return 0;
-                            list_del(&lnode->mylist);
-                            printk(KERN_INFO "Entry removed from list\n");
-                            kfree(lnode);
-                            list_add(&tmp_node->mylist, &head_node);
+                            
+                            list_add(&tmp_node->mylist, &head_node);    // New head of list
+
+                            lnode = list_last_entry(&head_node, struct hcsr04_lifo_node, mylist);   // tail of list
+                            
+                            if (lnode != NULL) { 
+                                list_del(&lnode->mylist);
+                                printk(KERN_INFO "Entry removed from list\n");
+                                kfree(lnode);
+                            }
                         }
                         else {
                             kfree(tmp_node);
