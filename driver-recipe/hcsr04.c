@@ -60,7 +60,6 @@ struct device *hcsr04_device;
 struct device *hcsr04_device_root;
 struct timespec present_timestamp;
 
-static int bx;
 ktime_t ECHO_high_starttime;
 ktime_t ECHO_high_stooptime;
 ktime_t tmp_ktime;
@@ -160,8 +159,18 @@ ssize_t hcsr04_sysfs_store(struct device *dev, struct device_attribute *attr, co
 
 int hcsr04_open(struct inode *inode, struct file *file) 
 {   
+    struct hcsr04_lifo_node *cursor, *tmp;
+    int i;
     pending_read = 0;
-    bx = 0;
+
+    list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
+        list_del(&cursor->mylist);
+        kfree(&cursor);
+        if (cursor == NULL) break;
+    }
+
+    for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
+
     return 0;
 } 
 
@@ -224,8 +233,7 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                             list_del(&lnode->mylist);
                             printk(KERN_INFO "Entry removed from list\n");
                             kfree(lnode);
-                            list_add(&tmp_node->mylist, &head_node);
-
+                             list_add(&tmp_node->mylist, &head_node);
                         }
                         else {
                             kfree(tmp_node);
@@ -296,10 +304,6 @@ static int __init hcsr04_init(void)
     if ((errn = gpio_direction_output(TRIG_pin, 0)) < 0 ) return errn;
     
     TRIG_timeout = ktime_set(0, ECHO_tmo); // Timeout = 0 second + ECHO_tms nanoseconds
-
-    for (i = 0; i < USER_mrq; i++) {
-        bucket[i] = bucket_data;
-    }
 
     INIT_LIST_HEAD(&head_node);
 
