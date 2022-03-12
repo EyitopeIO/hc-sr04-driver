@@ -116,11 +116,13 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
     i = 0;
     ret = 0;
 
-    list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
-
+    list_for_each_entry_safe(cursor, tmp, &head_node, mylist)
+    {
         if ((cursor == NULL) || (i >= USER_mrq))
+        {
             printk(KERN_INFO "show(): End of list seen\n");
             break;
+        }
 
         btmp.t_stamp = (cursor->data).t_stamp;
         btmp.t_high = (cursor->data).t_high;
@@ -129,7 +131,7 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
         bucket[i] = btmp;
         
         list_del(&cursor->mylist);
-        kfree(&cursor);
+        kfree(cursor);
         printk(KERN_INFO "show(): Freed item %d\n", i);
         
         i++;
@@ -183,8 +185,6 @@ int hcsr04_open(struct inode *inode, struct file *file)
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
 
-    // INIT_LIST_HEAD(&head_node);
-
     printk(KERN_INFO "Initialized list\n");
 
     return 0;
@@ -233,13 +233,16 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
 
                     while (list_busy);
 
-                    if ((tmp_node = kmalloc(sizeof(struct hcsr04_lifo_node), GFP_KERNEL)) != NULL) {
+                    if ((tmp_node = kmalloc(sizeof(struct hcsr04_lifo_node), GFP_KERNEL)) != NULL)
+                    {
                         (tmp_node->data).t_stamp = usd.t_stamp;
                         (tmp_node->data).t_high = usd.t_high;
                         (tmp_node->data).m_dist = (unsigned int)((usd.t_high/1000)/CNST_div);
                      
                         list_busy = 1;
-                        if (number_of_nodes < USER_mrq) {
+
+                        if (number_of_nodes < USER_mrq)
+                        {
                             list_add(&tmp_node->mylist, &head_node);
                             printk(KERN_INFO "New value added to list\n");
                             number_of_nodes++;
@@ -251,7 +254,8 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                             lnode = list_last_entry(&head_node, struct hcsr04_lifo_node, mylist);   // tail of list
                             printk(KERN_INFO "Retrieved tail of list\n");
                             
-                            if (lnode != NULL) { 
+                            if (lnode != NULL)
+                            { 
                                 list_del(&lnode->mylist);
                                 printk(KERN_INFO "Entry removed from list\n");
                                 kfree(lnode);
@@ -338,7 +342,7 @@ static void __exit hcsr04_exit(void)
     gpio_free(TRIG_pin);
     list_for_each_entry_safe(lnode, tmp_node, &head_node, mylist) {
         list_del(&lnode->mylist);
-        kfree(&lnode);
+        kfree(lnode);
     }
     device_remove_file(hcsr04_device, &last5);
     device_destroy(hcsr04_class, hcsr04_devt);
