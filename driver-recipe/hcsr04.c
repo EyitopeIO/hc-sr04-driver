@@ -112,19 +112,20 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
     int i;
 
     struct hcsr04_sysfs_ldata btmp;
+    struct hcsr04_lifo_node *cursor, *tmp;
 
     while (list_busy);
 
     list_busy = 1;
     i = 0;
 
-    list_for_each_entry_safe(lnode, tmp_node, &head_node, mylist) {
-        btmp.t_stamp = (lnode->data).t_stamp;
-        btmp.t_high = (lnode->data).t_high;
-        btmp.m_dist = (lnode->data).m_dist;
+    list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
+        btmp.t_stamp = (cursor->data).t_stamp;
+        btmp.t_high = (cursor->data).t_high;
+        btmp.m_dist = (cursor->data).m_dist;
         bucket[i] = btmp;
-        list_del(&lnode->mylist);
-        kfree(&lnode);
+        list_del(&cursor->mylist);
+        // kfree(&cursor);
         i++;
     }
 

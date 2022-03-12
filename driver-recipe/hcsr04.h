@@ -25,12 +25,6 @@ struct hcsr04_data
     unsigned int t_high;
 };
 
-struct hcsr04_sysfs_data
-{
-    unsigned int t_high;
-    unsigned int m_dist;
-};
-
 struct hcsr04_sysfs_ldata
 {
     unsigned long t_stamp;
