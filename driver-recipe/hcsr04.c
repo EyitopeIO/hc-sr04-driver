@@ -119,6 +119,9 @@ ssize_t hcsr04_sysfs_show(struct device *dev, struct device_attribute *attr, cha
     i = 0;
 
     list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
+
+        if (cursor == NULL) break;
+
         btmp.t_stamp = (cursor->data).t_stamp;
         btmp.t_high = (cursor->data).t_high;
         btmp.m_dist = (cursor->data).m_dist;
@@ -162,12 +165,17 @@ int hcsr04_open(struct inode *inode, struct file *file)
     struct hcsr04_lifo_node *cursor, *tmp;
     int i;
     pending_read = 0;
+    number_of_nodes = 0;
 
     list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
+        if (cursor == NULL) break;
         list_del(&cursor->mylist);
         kfree(&cursor);
-        if (cursor == NULL) break;
     }
+
+    bucket_data.t_stamp = 0,
+    bucket_data.t_high = 0,
+    bucket_data.m_dist = 0
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
 
@@ -230,10 +238,12 @@ ssize_t hcsr04_write(struct file *filp, const  char *buffer, size_t length, loff
                         }
                         else if (number_of_nodes >= USER_mrq) {
                             lnode = list_first_entry(&head_node, struct hcsr04_lifo_node, mylist);
+                            if (lnode == NULL)
+                                return 0;
                             list_del(&lnode->mylist);
                             printk(KERN_INFO "Entry removed from list\n");
                             kfree(lnode);
-                             list_add(&tmp_node->mylist, &head_node);
+                            list_add(&tmp_node->mylist, &head_node);
                         }
                         else {
                             kfree(tmp_node);
