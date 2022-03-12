@@ -174,7 +174,7 @@ int hcsr04_open(struct inode *inode, struct file *file)
     list_for_each_entry_safe(cursor, tmp, &head_node, mylist) {
         if (cursor == NULL) break;
         list_del(&cursor->mylist);
-        kfree(&cursor);
+        kfree(cursor);
     }
 
     bucket_data.t_stamp = 0;
@@ -183,7 +183,7 @@ int hcsr04_open(struct inode *inode, struct file *file)
 
     for (i = 0; i < USER_mrq; i++) bucket[i] = bucket_data;
 
-    INIT_LIST_HEAD(&head_node);
+    // INIT_LIST_HEAD(&head_node);
 
     printk(KERN_INFO "Initialized list\n");
 
