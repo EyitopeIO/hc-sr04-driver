@@ -2,8 +2,8 @@
 *
 * Eyitope Adelowo (adelowoe@coventry.ac.uk)
 * 17-FEB-2022
-* 
-* Developed during 7041CEM, Coventry University 
+*
+* Developed during 7041CEM, Coventry University
 */
 
 
@@ -16,12 +16,12 @@
 #include <stdio.h>
 
 /*
- * Minimum time between read and write to device in microseconds.  
+ * Minimum time between read and write to device in microseconds.
 */
 #define READ_INTERVAL 6300
 #define DIVISION_CONSTANT 58
 
-struct hcsr04_data 
+struct hcsr04_data
 {
     unsigned long t_stamp;
     unsigned int t_high;
@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
 {
 
     if (argc < 2) {
-        printf("You must specify number of pings. Quitting.\n");
-        printf("Usage: /usr/bin/getdistance <number_of_pings>\n");
+        fprintf(stderr, "You must specify number of pings. Quitting.\n");
+        fprintf(stderr, "Usage: /usr/bin/getdistance <number_of_pings>\n");
 
         return -1;
     }
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     time_t ltime;
 
     if((cc = atoi(argv[1])) == 0) {
-        printf("Invalid argument. Exiting...");
+        fprintf(stderr, "Invalid argument. Exiting...\n");
         exit(EXIT_FAILURE);
     }
 
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
         perror("Exiting...");
         exit(EXIT_FAILURE);
     }
-    
+
     printf("/dev/hcsr04 opened\n");
 
     while(iter--)
