@@ -1,9 +1,7 @@
 /*
 *
-* Eyitope Adelowo (adelowoe@coventry.ac.uk)
+* Eyitope Adelowo (adeyitope.io@gmail.com)
 * 17-FEB-2022
-*
-* Developed during 7041CEM, Coventry University
 */
 
 
